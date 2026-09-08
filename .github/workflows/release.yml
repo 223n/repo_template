@@ -180,15 +180,15 @@ jobs:
             for (const base of bases.filter(Boolean)) {
               const c = compare(next, base)
               if (c === 0) {
-                console.log(`::error::${next} は今の版と同じである`)
+                console.log("::error::" + next + " は今の版と同じである")
                 process.exit(1)
               }
               if (c < 0) {
-                console.log(`::error::${next} は今の版 ${base} より小さい`)
+                console.log("::error::" + next + " は今の版 " + base + " より小さい")
                 process.exit(1)
               }
             }
-            console.log(`版: ${bases.filter(Boolean).join(", ")} → ${next}`)
+            console.log("版: " + bases.filter(Boolean).join(", ") + " → " + next)
           ' "${VERSION}" "${current}" "${main_version}" "${latest_tag#v}"
 
       - name: リリースブランチを切って版を上げる
