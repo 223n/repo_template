@@ -25,7 +25,9 @@ GitHub Actions:
       - any-glob-to-any-file:
           - 'SECURITY.md'
 
-# リリースのワークフローが作る PR（release/vX.Y.Z → main、main → develop）
+# リリースのワークフローが開く PR（release/vX.Y.Z → main、main → develop）には、
+# GITHUB_TOKEN が開いた PR ではラベラーが動かないため、ワークフロー側が gh pr edit で付ける。
+# ここは人がリリースブランチに push したときや、ブランチを作り直したときの補完
 リリース:
   - head-branch:
       - '^release/'
