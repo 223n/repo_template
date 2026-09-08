@@ -72,7 +72,8 @@ Node 22以上が要ります。
 「である調」にしたい場合や、規則を一部だけ変えたい場合は、`.textlintrc.js`のコメントに書き方があります。
 
 `main`と`develop`への`push`と、すべてのPull Requestで、CIが同じ検査をします。
-ワークフローの安全性は、`codeql.yml`がCodeQLの`actions`言語で走査します。
+CIではあわせて、ワークフローの構文を`actionlint`で、安全性を`zizmor`で検査します。
+ワークフローの安全性は、`codeql.yml`もCodeQLの`actions`言語で走査します。
 ワークフローが開いたPull Request（リリースのPull Requestなど）では、CIは「承認待ち」で作られます。
 書き込み権限のある人が「Approve workflows to run」を押すと動きます。
 承認せずにマージすると、承認待ちの実行は失敗として記録されますが、検査が落ちたわけではありません。
@@ -118,6 +119,9 @@ Pull Requestには、変えたファイルとブランチ名から`.github/label
 Pull Requestは`develop`に向けて開かれ、「依存関係」と「npm」または「GitHub Actions」のラベルが付きます。
 npmではminorとpatchの更新が本番用と開発用の2つのPull Requestにまとまり、majorの更新は個別に開かれます。
 GitHub Actionsのアクションは、majorも含めてすべて1つのPull Requestにまとまります。
+
+ワークフローが使うアクションはコミットSHAで固定し、版はコメントに書いてあります。
+DependabotはSHAとコメントの両方を更新します。
 
 セキュリティ更新は常に既定ブランチ（`main`）に向けて開かれます。
 既定ブランチ向けのエントリも書いてあるため、そこにも同じラベルと接頭辞が付きます。
@@ -177,7 +181,8 @@ npm version patch --no-git-tag-version
 設定は「Settings」→「Secrets and variables」→「Actions」の「Variables」にあります。
 変数が無いときは`ubuntu-latest`に倒れるため、設定しなくても動きます。
 
-セルフホストのランナーには、`git`と`gh`（GitHub CLI）が要ります。
+セルフホストのランナーには、`git`と`gh`（GitHub CLI）、Dockerが要ります。
+Dockerはzizmorの検査（コンテナで動きます）に使います。
 Nodeはワークフローが用意します。
 公開リポジトリでセルフホストのランナーを使うと、フォークからのPull Requestで任意のコードが動くため、非公開のリポジトリで使ってください。
 
@@ -185,7 +190,7 @@ Nodeはワークフローが用意します。
 
 | ファイル | いつ動くか | 何をするか |
 | ---- | ---- | ---- |
-| `ci.yml` | `main`と`develop`への`push`、Pull Request、手動 | 日本語の文書を検査します |
+| `ci.yml` | `main`と`develop`への`push`、Pull Request、手動 | 日本語の文書、ワークフローの構文（actionlint）、ワークフローの安全性（zizmor）を検査します |
 | `codeql.yml` | `main`と`develop`への`push`、Pull Request、毎週月曜 | ワークフローの安全性をCodeQLで走査します。結果は「Security」→「Code scanning」に出ます |
 | `labels.yml` | `.github/labels.yml`か`.github/workflows/labels.yml`の変更、手動 | リポジトリのラベルを定義に揃えます。Pull Requestでは差分の表示だけです |
 | `labeler.yml` | Pull Requestを開いたとき、更新したとき | 変えたファイルとブランチ名からラベルを付けます |
