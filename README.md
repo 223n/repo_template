@@ -30,7 +30,7 @@
 
 ### 作った直後にやること
 
-`gh`（GitHub CLI）でログインした状態で、cloneの中で次を実行します。
+`gh`（GitHub CLI）にログインしたうえで、cloneの中で次を実行します。
 
 ```bash
 scripts/setup.sh                        # 設定をまとめて行う
