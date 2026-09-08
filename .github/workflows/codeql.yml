@@ -18,6 +18,8 @@ on:
   schedule:
     # 毎週月曜の朝（日本時間 9:00）。CodeQL の規則が更新されたときに新しい指摘を拾う
     - cron: '0 0 * * 1'
+  # 手で動かすため。pull_request の実行が作られなかったブランチを走査したいときに使う
+  workflow_dispatch:
 
 # 同じブランチに続けて push したとき、古い実行を止める
 concurrency:
