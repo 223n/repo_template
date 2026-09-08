@@ -22,12 +22,16 @@
   from_name: question
   color: '#d876e3'
   description: 使い方や仕様についての質問
+- name: アクセシビリティ
+  from_name: accessibility
+  color: '#f143ab'
+  description: 障害のある人の利用を妨げるもの
 
 # ---- 状態。人が付ける
 - name: 重複
   from_name: duplicate
   color: '#cfd3d7'
-  description: すでにある Issue や PR と同じ内容
+  description: すでにあるIssueやPRと同じ内容
 - name: 無効
   from_name: invalid
   color: '#e4e669'
@@ -52,11 +56,11 @@
   description: 依存パッケージやアクションの更新
 - name: npm
   color: '#cb3837'
-  description: npm パッケージの更新
+  description: npmパッケージの更新
 - name: GitHub Actions
   from_name: github_actions
   color: '#2088ff'
-  description: GitHub Actions の更新
+  description: GitHub Actionsの更新
 - name: リリース
   color: '#0e8a16'
   description: リリースの準備と公開
