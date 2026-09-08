@@ -9,8 +9,9 @@ on:
   push:
     branches: [main, develop]
   pull_request:
-  # リリースのワークフローが release/* ブランチに対して手で呼ぶ。
-  # GITHUB_TOKEN が開いた PR には pull_request のワークフローが走らないためである
+  # 手で動かすため。
+  # GITHUB_TOKEN が開いた PR（リリースの PR など）では、pull_request の実行は「承認待ち」で作られ、
+  # 書き込み権限のある人が「Approve workflows to run」を押すまで動かない
   workflow_dispatch:
 
 # 同じブランチに続けて push したとき、古い実行を止める
