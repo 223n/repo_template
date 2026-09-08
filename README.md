@@ -157,8 +157,9 @@ develop ──▶ release/vX.Y.Z ──(Pull Request)──▶ main ──▶ �
 `-rc.1`のようなプレリリースの版は、GitHub Releaseでもプレリリースになります。
 
 `auto_merge`を有効にして実行すると、Pull Requestを人手で確かめずにマージし、公開まで一気に進めます。
-ブランチ保護で承認が要る場合はマージで止まります。
-その場合は人がマージすれば、公開のワークフローが続きを行います。
+ただし`main`に必須のチェックや承認のルールがあると、マージで止まります。
+ワークフローが開いたPull RequestのCIは承認待ちのままで、ルールを満たせないためです。
+その場合は人がPull Requestをマージすれば、公開のワークフローが続きを行います。
 
 `develop`にPull Requestを必須にする規則がある場合、`main`から`develop`への戻しは毎回Pull Requestになります。
 ブランチ名は`merge/vX.Y.Z-into-develop`です。

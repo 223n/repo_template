@@ -7,6 +7,9 @@ name: リリース
 # PR を人がマージすると「リリースを公開する」（release-publish.yml）が動き、
 # タグと GitHub Release を作って main を develop に戻す。
 # auto_merge を有効にすると、人手を挟まずにこのワークフローの中で PR をマージし、公開まで進める。
+# ただし main に必須のチェックや承認のルールがあると、auto_merge はマージで止まる。
+# GITHUB_TOKEN が開いた PR の CI は承認待ちのままで、ルールを満たせないためである。
+# その場合は人が PR をマージすれば、release-publish.yml が動いて公開まで進む。
 #
 # PR は必ずマージコミット（Create a merge commit）でマージする。
 # squash や rebase にすると、リリースノートに develop で取り込んだ PR が載らず、次の版の PR が衝突する。
@@ -56,6 +59,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       branch: ${{ steps.version.outputs.branch }}
       pr_number: ${{ steps.pr.outputs.number }}
+      pr_url: ${{ steps.pr.outputs.url }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -310,12 +314,16 @@ jobs:
 
       - name: PRをマージする
         # マージコミットで取り込む。
-        # ブランチ保護で承認が要る場合はここで止まる。その場合は人がマージすれば、
-        # release-publish.yml が pull_request(closed) で動いて公開まで進む
+        # main のルール（必須のチェックや承認）で止められた場合はここで失敗する。
+        # その場合は人が PR をマージすれば、release-publish.yml が pull_request(closed) で動いて公開まで進む
         env:
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          PR_URL: ${{ needs.prepare.outputs.pr_url }}
         run: |
-          gh pr merge "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --merge --delete-branch
+          if ! gh pr merge "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --merge --delete-branch; then
+            echo "::error::PR をマージできなかった。main のルール（必須のチェックや承認）で止められている。人が PR をマージすれば、「リリースを公開する」が動いて公開まで進む: ${PR_URL}"
+            exit 1
+          fi
 
   publish:
     name: タグとGitHub Releaseを作る
