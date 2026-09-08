@@ -19,9 +19,10 @@ GitFlowに沿って運用します。
 | `develop` | 次のリリースに向けた開発の本流です |
 | `feature/*` | 機能の追加や修正です。`develop`から切り、`develop`に戻します |
 | `release/*` | リリースの準備です。「リリース」ワークフローが`develop`から切り、`main`に取り込みます |
-| `hotfix/*` | リリース済みの内容の緊急の修正です。`main`から切り、`main`と`develop`の両方に戻します |
+| `hotfix/*` | リリース済みの内容の緊急の修正です。`main`から切り、そのブランチで`package.json`の版も上げます。`main`にマージすると公開され、`develop`にも戻されます |
 
-リリースの手順は[README](README.md)の「リリースする」にあります。
+リリースと緊急の修正の手順は[README](README.md)の「ブランチとリリース」にあります。
+Pull Requestはマージコミット（Create a merge commit）でマージします。
 
 ## 文書の書き方
 
@@ -45,3 +46,4 @@ GitFlowに沿って運用します。
 IssueとPull Requestのラベルは`.github/labels.yml`で管理します。
 ラベルを足したり変えたりするときは、GitHubの画面ではなくこのファイルを変えてください。
 `develop`に入ると同期のワークフローが動き、リポジトリのラベルがファイルの内容に揃います。
+`main`側からの同期では、ファイルに無いラベルを消しません。
