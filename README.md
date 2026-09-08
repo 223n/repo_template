@@ -85,8 +85,10 @@ IssueとPull Requestのラベルはすべて日本語です。
 | GitHub Actions | GitHub Actionsの更新 | Dependabot、ラベラー |
 | リリース | リリースの準備と公開 | リリースのワークフロー、ラベラー |
 | セキュリティ | 脆弱性やセキュリティに関わる修正 | 人、ラベラー |
+| 破壊的変更 | 後方互換性を壊す変更 | 人 |
 
 GitHubが最初から用意する英語のラベル（`bug`や`enhancement`など）は、付いているIssueを保ったまま日本語のラベルに改名されます。
+Dependabotが作る既定のラベル（`dependencies`、`javascript`、`github_actions`）も同じように改名されます。
 対応は`.github/labels.yml`の`from_name`にあります。
 
 Pull Requestには、変えたファイルとブランチ名から`.github/labeler.yml`の規則でラベルが自動で付きます。

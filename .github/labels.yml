@@ -12,7 +12,7 @@
   description: 期待どおりに動かない
 - name: 機能追加
   from_name: enhancement
-  color: '#1d76db'
+  color: '#a2eeef'
   description: 新しい機能や改善の要望
 - name: ドキュメント
   from_name: documentation
@@ -49,21 +49,26 @@
   color: '#008672'
   description: 手を貸してほしい課題
 
-# ---- 自動で付く。Dependabot、PR のラベラー、リリースのワークフローが付ける
+# ---- 自動で付く。Dependabot、PR のラベラー、リリースのワークフローが付ける。
+# 破壊的変更だけは、PR を確認した人が付ける
 - name: 依存関係
   from_name: dependencies
   color: '#0366d6'
   description: 依存パッケージやアクションの更新
 - name: npm
-  color: '#cb3837'
+  from_name: javascript
+  color: '#2c375d'
   description: npmパッケージの更新
 - name: GitHub Actions
   from_name: github_actions
   color: '#2088ff'
   description: GitHub Actionsの更新
 - name: リリース
-  color: '#0e8a16'
+  color: '#5a6e59'
   description: リリースの準備と公開
 - name: セキュリティ
-  color: '#b60205'
+  color: '#69020b'
   description: 脆弱性やセキュリティに関わる修正
+- name: 破壊的変更
+  color: '#303037'
+  description: 後方互換性を壊す変更。リリースノートで独立した見出しになる

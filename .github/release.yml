@@ -10,6 +10,9 @@ changelog:
       - 無効
       - 対応しない
   categories:
+    - title: 破壊的変更
+      labels:
+        - 破壊的変更
     - title: セキュリティ
       labels:
         - セキュリティ
