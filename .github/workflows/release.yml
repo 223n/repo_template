@@ -1,0 +1,281 @@
+name: リリース
+
+# 版を入力すると、develop から release/vX.Y.Z ブランチを切り、版を上げて main への PR を開く。
+#
+#   develop ──▶ release/vX.Y.Z ──(PR)──▶ main ──▶ タグ vX.Y.Z と GitHub Release ──▶ develop へ戻す
+#
+# PR を人がマージすると「リリースを公開する」（release-publish.yml）が動き、
+# タグと GitHub Release を作って main を develop に戻す。
+# auto_merge を有効にすると、人手を挟まずにこのワークフローの中で PR をマージし、公開まで進める。
+#
+# 一度だけ要る設定:
+#   Settings > Actions > General > Workflow permissions で
+#   「Allow GitHub Actions to create and approve pull requests」を有効にする。
+#   これが無いと gh pr create が拒まれる。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'リリースする版。v は付けない（例: 1.2.0、1.2.0-rc.1）'
+        required: true
+        type: string
+      auto_merge:
+        description: 'PR を人手で確認せず、そのままマージしてタグと GitHub Release まで進める'
+        required: false
+        type: boolean
+        default: false
+
+# リリースは同時に1つだけ動かす。途中の実行を止めると半端な状態が残るため、待たせる
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# 既定は読み取りだけにする。要る権限は各ジョブで足す
+permissions:
+  contents: read
+
+env:
+  DEVELOP_BRANCH: develop
+  MAIN_BRANCH: main
+
+jobs:
+  prepare:
+    name: リリースブランチとPRを作る
+    # セルフホストのランナーがあれば、リポジトリの変数 RUNS_ON にそのラベル（例: self-hosted）を設定する。
+    # 無ければ GitHub がホストする ubuntu-latest で動く
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    permissions:
+      contents: write        # release ブランチを押す
+      pull-requests: write   # PR を開く
+      actions: write         # CI を手で呼ぶ
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      branch: ${{ steps.version.outputs.branch }}
+      pr_number: ${{ steps.pr.outputs.number }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: GitHub CLIがあることを確かめる
+        # GitHub がホストするランナーには入っている。セルフホストのランナーでは自分で入れる
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "::error::gh（GitHub CLI）が無い。ランナーに入れてから実行する: https://cli.github.com/"
+            exit 1
+          fi
+
+      - name: 版の書式を確かめる
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          version="${INPUT_VERSION#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::版の書式が違う: ${INPUT_VERSION}（例: 1.2.0、1.2.0-rc.1）"
+            exit 1
+          fi
+          {
+            echo "version=${version}"
+            echo "tag=v${version}"
+            echo "branch=release/v${version}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: developブランチがあることを確かめる
+        # 無いまま checkout に進むと、原因の分かりにくい失敗になる
+        run: |
+          if ! gh api "repos/${GITHUB_REPOSITORY}/branches/${DEVELOP_BRANCH}" --silent 2>/dev/null; then
+            echo "::error::${DEVELOP_BRANCH} ブランチが無い。main から作ってから実行する"
+            exit 1
+          fi
+
+      - name: developを取得
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.DEVELOP_BRANCH }}
+          # タグの有無を見るため、履歴をすべて取る
+          fetch-depth: 0
+
+      - name: タグとブランチが未使用であることを確かめる
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "::error::タグ ${TAG} はすでにある"
+            exit 1
+          fi
+          if git ls-remote --exit-code --heads origin "refs/heads/${BRANCH}" >/dev/null 2>&1; then
+            echo "::error::ブランチ ${BRANCH} はすでにある。前のリリースが途中で止まっていないか確かめる"
+            exit 1
+          fi
+
+          # 今の版より大きいことを確かめる。
+          # 数字が同じなら正式版がプレリリースより大きく、プレリリースどうしは文字列で比べる
+          current="$(node -p "require('./package.json').version")"
+          result="$(node -e '
+            const [cur, next] = process.argv.slice(1)
+            const parse = (v) => {
+              const [core, ...pre] = v.split("-")
+              return { core: core.split(".").map(Number), pre: pre.join("-") }
+            }
+            const a = parse(cur)
+            const b = parse(next)
+            let cmp = 0
+            for (let i = 0; i < 3 && cmp === 0; i += 1) cmp = Math.sign(b.core[i] - a.core[i])
+            if (cmp === 0) {
+              if (a.pre && !b.pre) cmp = 1
+              else if (!a.pre && b.pre) cmp = -1
+              else if (a.pre && b.pre) cmp = b.pre > a.pre ? 1 : b.pre < a.pre ? -1 : 0
+            }
+            process.stdout.write(cmp > 0 ? "newer" : cmp === 0 ? "same" : "older")
+          ' "${current}" "${VERSION}")"
+          case "${result}" in
+            newer) echo "版: ${current} → ${VERSION}" ;;
+            same) echo "::error::${VERSION} は今の版と同じである"; exit 1 ;;
+            *) echo "::error::${VERSION} は今の版 ${current} より小さい"; exit 1 ;;
+          esac
+
+      - name: Nodeを用意
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: 依存を入れる
+        run: npm ci
+
+      - name: リリースブランチを切って版を上げる
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          git switch -c "${BRANCH}"
+          # package.json と package-lock.json の版を書き換える。タグはまだ打たない
+          npm version "${VERSION}" --no-git-tag-version
+          actual="$(node -p "require('./package.json').version")"
+          if [ "${actual}" != "${VERSION}" ]; then
+            echo "::error::package.json の版が ${VERSION} にならなかった（${actual}）"
+            exit 1
+          fi
+
+      - name: 検査を通す
+        # GITHUB_TOKEN が開いた PR には pull_request のワークフローが走らない。
+        # 壊れたものをリリースブランチに載せないよう、ここで検査する
+        run: npm run lint
+
+      - name: コミットして押す
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          git commit -m "版を ${VERSION} に上げる"
+          git push --set-upstream origin "${BRANCH}"
+
+      - name: リリースブランチでCIを動かす
+        # PR の画面に検査の結果が出るようにする。
+        # workflow_dispatch は GITHUB_TOKEN からでも起動できる
+        env:
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          gh workflow run ci.yml --ref "${BRANCH}" \
+            || echo "::warning::CI を起動できなかった。PR の画面から手で実行する"
+
+      - name: リリースノートの下書きを作る
+        # タグはまだ無いが、generate-notes は新しいタグ名でも受け付ける
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            --method POST \
+            -f tag_name="${TAG}" \
+            -f target_commitish="${BRANCH}" \
+            --jq '.body' > notes.md \
+            || { echo "::warning::リリースノートの下書きを作れなかった"; : > notes.md; }
+
+      - name: PRを開く
+        id: pr
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          BRANCH: ${{ steps.version.outputs.branch }}
+        run: |
+          {
+            echo "\`${DEVELOP_BRANCH}\` の内容を ${TAG} としてリリースします。"
+            echo
+            echo "この PR をマージすると「リリースを公開する」ワークフローが動き、次を行います。"
+            echo
+            echo "1. タグ \`${TAG}\` を打ちます"
+            echo "1. GitHub Release を作ります"
+            echo "1. \`${MAIN_BRANCH}\` を \`${DEVELOP_BRANCH}\` に戻します"
+            echo
+            echo "## 変更の一覧（下書き）"
+            echo
+            cat notes.md
+          } > body.md
+
+          url="$(gh pr create \
+            --base "${MAIN_BRANCH}" \
+            --head "${BRANCH}" \
+            --title "リリース ${TAG}" \
+            --body-file body.md)"
+          number="${url##*/}"
+          echo "number=${number}" >> "$GITHUB_OUTPUT"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
+          # ラベルが無いリポジトリでも PR は開けるようにする
+          gh pr edit "${number}" --add-label 'リリース' \
+            || echo "::warning::ラベル「リリース」を付けられなかった。.github/labels.yml の同期が済んでいるか確かめる"
+
+          {
+            echo "## リリース ${TAG}"
+            echo
+            echo "- PR: ${url}"
+            echo "- ブランチ: \`${BRANCH}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  merge:
+    name: PRをマージする
+    if: inputs.auto_merge
+    needs: prepare
+    # セルフホストのランナーがあれば、リポジトリの変数 RUNS_ON にそのラベル（例: self-hosted）を設定する。
+    # 無ければ GitHub がホストする ubuntu-latest で動く
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: GitHub CLIがあることを確かめる
+        # GitHub がホストするランナーには入っている。セルフホストのランナーでは自分で入れる
+        run: |
+          if ! command -v gh >/dev/null 2>&1; then
+            echo "::error::gh（GitHub CLI）が無い。ランナーに入れてから実行する: https://cli.github.com/"
+            exit 1
+          fi
+
+      - name: PRをマージする
+        # ブランチ保護で承認が要る場合はここで止まる。その場合は人がマージすれば、
+        # release-publish.yml が pull_request(closed) で動いて公開まで進む
+        env:
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+        run: |
+          gh pr merge "${PR_NUMBER}" --repo "${GITHUB_REPOSITORY}" --merge --delete-branch
+
+  publish:
+    name: タグとGitHub Releaseを作る
+    # GITHUB_TOKEN でマージしても pull_request(closed) のワークフローは動かないため、ここから呼ぶ
+    if: inputs.auto_merge
+    needs: [prepare, merge]
+    uses: ./.github/workflows/release-publish.yml
+    permissions:
+      contents: write
+      pull-requests: write
+    with:
+      version: ${{ needs.prepare.outputs.version }}
