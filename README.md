@@ -47,6 +47,7 @@
   - Dependabot alertsとDependabot security updates
 - セルフホストのランナーで動かすなら、変数`RUNS_ON`を設定します（後述）
 - `main`と`develop`にブランチ保護をかけます（任意）
+  - `develop`にPull Requestを必須にする規則をかけると、リリース後の戻しは毎回Pull Requestになります
 
 このリポジトリ自身をテンプレートとして使えるようにするには、「Settings」→「General」の「Template repository」にチェックを入れます。
 
@@ -71,6 +72,7 @@ Node 22以上が要ります。
 `main`と`develop`への`push`と、すべてのPull Requestで、CIが同じ検査をします。
 ワークフローが開いたPull Request（リリースのPull Requestなど）では、CIは「承認待ち」で作られます。
 書き込み権限のある人が「Approve workflows to run」を押すと動きます。
+承認せずにマージすると、承認待ちの実行は失敗として記録されますが、検査が落ちたわけではありません。
 
 ## ラベル
 
@@ -142,6 +144,10 @@ develop ──▶ release/vX.Y.Z ──(Pull Request)──▶ main ──▶ �
 `auto_merge`を有効にして実行すると、Pull Requestを人手で確かめずにマージし、公開まで一気に進めます。
 ブランチ保護で承認が要る場合はマージで止まります。
 その場合は人がマージすれば、公開のワークフローが続きを行います。
+
+`develop`にPull Requestを必須にする規則がある場合、`main`から`develop`への戻しは毎回Pull Requestになります。
+ブランチ名は`merge/vX.Y.Z-into-develop`です。
+リリースのあとに、このPull Requestもマージコミットでマージしてください。
 
 squashやrebaseでマージしないでください。
 リリースノートに`develop`で取り込んだPull Requestが載らず、次の版のPull Requestが衝突します。
