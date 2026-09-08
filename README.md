@@ -17,7 +17,7 @@
 | `.github/ISSUE_TEMPLATE/` | Issueのフォームです。バグ報告、機能の要望、質問の3つがあります |
 | `.github/pull_request_template.md` | Pull Requestのテンプレートです |
 | `.github/CODEOWNERS` | 変更の確認を求める相手です |
-| `.github/workflows/` | CI、ラベルの同期、ラベル付け、リリースのワークフローです |
+| `.github/workflows/` | CI、CodeQL、ラベルの同期、ラベル付け、リリースのワークフローです |
 | `CONTRIBUTING.md` | 貢献の手引きです。ブランチの運用と文書の書き方があります |
 | `SECURITY.md` | 脆弱性の報告先です |
 
@@ -42,12 +42,14 @@
 - `SECURITY.md`に、非公開で連絡できる先を書きます
 - `package.json`の`name`と`description`、このREADMEを書き換えます
 - ライセンスを変えるなら、`LICENSE`と`package.json`の`license`を書き換えます
+- 「Settings」→「Advanced Security」のCode scanningで、Default setupは使いません。走査は`codeql.yml`ワークフローが行います
 - 「Settings」→「Advanced Security」で、次を有効にします（任意）
   - Private vulnerability reporting。`SECURITY.md`とIssueの選択画面の「脆弱性の報告」がこれを使います
   - Dependabot alertsとDependabot security updates
 - セルフホストのランナーで動かすなら、変数`RUNS_ON`を設定します（後述）
 - `main`と`develop`にブランチ保護をかけます（任意）
   - `develop`にPull Requestを必須にする規則をかけると、リリース後の戻しは毎回Pull Requestになります
+  - 「Require code scanning results」の規則は、`codeql.yml`の結果（ツール名はCodeQL）で満たされます
 
 このリポジトリ自身をテンプレートとして使えるようにするには、「Settings」→「General」の「Template repository」にチェックを入れます。
 
@@ -70,6 +72,7 @@ Node 22以上が要ります。
 「である調」にしたい場合や、規則を一部だけ変えたい場合は、`.textlintrc.js`のコメントに書き方があります。
 
 `main`と`develop`への`push`と、すべてのPull Requestで、CIが同じ検査をします。
+ワークフローの安全性は、`codeql.yml`がCodeQLの`actions`言語で走査します。
 ワークフローが開いたPull Request（リリースのPull Requestなど）では、CIは「承認待ち」で作られます。
 書き込み権限のある人が「Approve workflows to run」を押すと動きます。
 承認せずにマージすると、承認待ちの実行は失敗として記録されますが、検査が落ちたわけではありません。
@@ -183,6 +186,7 @@ Nodeはワークフローが用意します。
 | ファイル | いつ動くか | 何をするか |
 | ---- | ---- | ---- |
 | `ci.yml` | `main`と`develop`への`push`、Pull Request、手動 | 日本語の文書を検査します |
+| `codeql.yml` | `main`と`develop`への`push`、Pull Request、毎週月曜 | ワークフローの安全性をCodeQLで走査します。結果は「Security」→「Code scanning」に出ます |
 | `labels.yml` | `.github/labels.yml`か`.github/workflows/labels.yml`の変更、手動 | リポジトリのラベルを定義に揃えます。Pull Requestでは差分の表示だけです |
 | `labeler.yml` | Pull Requestを開いたとき、更新したとき | 変えたファイルとブランチ名からラベルを付けます |
 | `release.yml` | 手動 | `develop`からリリースブランチを切り、版を上げ、`main`へのPull Requestを開きます |
