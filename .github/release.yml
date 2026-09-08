@@ -9,6 +9,9 @@ changelog:
       - 重複
       - 無効
       - 対応しない
+    # リリースのワークフローが開く PR の作者。New Contributors に載らないようにする
+    authors:
+      - github-actions[bot]
   categories:
     - title: 破壊的変更
       labels:

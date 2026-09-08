@@ -96,7 +96,8 @@ jobs:
           fi
 
       - name: developを取得
-        uses: actions/checkout@v7
+        # zizmor: ignore[artipacked] このジョブは release ブランチを push するため、認証情報を残す
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.DEVELOP_BRANCH }}
           # 最新のタグと main の版と比べるため、履歴とタグをすべて取る
@@ -104,7 +105,7 @@ jobs:
 
       - name: Nodeを用意
         # 版の比較にも node を使うため、その前に用意する。セルフホストのランナーに Node が無くても動く
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: npm
@@ -179,15 +180,15 @@ jobs:
             for (const base of bases.filter(Boolean)) {
               const c = compare(next, base)
               if (c === 0) {
-                console.log(`::error::${next} は今の版と同じである`)
+                console.log("::error::" + next + " は今の版と同じである")
                 process.exit(1)
               }
               if (c < 0) {
-                console.log(`::error::${next} は今の版 ${base} より小さい`)
+                console.log("::error::" + next + " は今の版 " + base + " より小さい")
                 process.exit(1)
               }
             }
-            console.log(`版: ${bases.filter(Boolean).join(", ")} → ${next}`)
+            console.log("版: " + bases.filter(Boolean).join(", ") + " → " + next)
           ' "${VERSION}" "${current}" "${main_version}" "${latest_tag#v}"
 
       - name: リリースブランチを切って版を上げる
@@ -321,7 +322,8 @@ jobs:
     # GITHUB_TOKEN でマージしても pull_request(closed) のワークフローは動かないため、ここから呼ぶ
     if: inputs.auto_merge
     needs: [prepare, merge]
-    uses: ./.github/workflows/release-publish.yml
+    # GitHub の $/ 構文（自リポジトリ参照）は actionlint 1.7.12 がまだ理解しないため、./ のままにする
+    uses: ./.github/workflows/release-publish.yml # zizmor: ignore[self-repository] actionlint が $/ に未対応
     permissions:
       contents: write
       pull-requests: write

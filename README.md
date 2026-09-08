@@ -17,7 +17,8 @@
 | `.github/ISSUE_TEMPLATE/` | Issueのフォームです。バグ報告、機能の要望、質問の3つがあります |
 | `.github/pull_request_template.md` | Pull Requestのテンプレートです |
 | `.github/CODEOWNERS` | 変更の確認を求める相手です |
-| `.github/workflows/` | CI、ラベルの同期、ラベル付け、リリースのワークフローです |
+| `.github/workflows/` | CI、CodeQL、ラベルの同期、ラベル付け、リリースのワークフローです |
+| `scripts/setup.sh` | テンプレートから作った直後の設定をまとめて行うスクリプトです。`gh`を使います |
 | `CONTRIBUTING.md` | 貢献の手引きです。ブランチの運用と文書の書き方があります |
 | `SECURITY.md` | 脆弱性の報告先です |
 
@@ -29,26 +30,36 @@
 
 ### 作った直後にやること
 
-- `develop`ブランチが無ければ`main`から作ります。リリースのワークフローは`develop`を起点にします
-- 「Settings」→「Actions」→「General」の「Workflow permissions」で、「Allow GitHub Actions to create and approve pull requests」を有効にします
-  - リリースのワークフローがPull Requestを開くために要ります
-  - 組織のリポジトリでは、先に組織の「Settings」→「Actions」→「General」で同じ項目を許可しておく必要があります
-- 最初のPull Requestを開く前に、Actionsの「ラベルを同期する」を一度手で実行します
-  - 既定の英語のラベルが日本語に置き換わり、Dependabotのラベルもこれで付くようになります
-- 「Settings」→「General」の「Pull Requests」で、squash mergeとrebase mergeを無効にします
-  - リリースのワークフローはマージコミットを前提にしています
-- `.github/CODEOWNERS`の`@223n`を、自分のアカウントかチームに書き換えます
-- `.github/ISSUE_TEMPLATE/config.yml`のURLにある`223n/repo_template`を、自分のリポジトリに書き換えます
-- `SECURITY.md`に、非公開で連絡できる先を書きます
-- `package.json`の`name`と`description`、このREADMEを書き換えます
-- ライセンスを変えるなら、`LICENSE`と`package.json`の`license`を書き換えます
-- 「Settings」→「Advanced Security」で、次を有効にします（任意）
-  - Private vulnerability reporting。`SECURITY.md`とIssueの選択画面の「脆弱性の報告」がこれを使います
-  - Dependabot alertsとDependabot security updates
-- セルフホストのランナーで動かすなら、変数`RUNS_ON`を設定します（後述）
-- `main`と`develop`にブランチ保護をかけます（任意）
+`gh`（GitHub CLI）にログインしたうえで、cloneの中で次を実行します。
 
-このリポジトリ自身をテンプレートとして使えるようにするには、「Settings」→「General」の「Template repository」にチェックを入れます。
+```bash
+scripts/setup.sh                        # 設定をまとめて行う
+scripts/setup.sh --runs-on self-hosted  # セルフホストのランナーも設定する
+scripts/setup.sh --dry-run              # 何をするかを表示するだけ
+```
+
+スクリプトは次を行います。
+何度実行しても結果は同じで、失敗した項目は最後にまとめて表示します。
+
+- `develop`ブランチが無ければ`main`から作ります
+- 「Allow GitHub Actions to create and approve pull requests」を有効にします。リリースのワークフローがPull Requestを開くために要ります
+- squash mergeとrebase mergeを無効にし、マージ後にブランチを消す設定にします
+- Private vulnerability reporting、Dependabot alerts、Dependabot security updatesを有効にします
+- 「ラベルを同期する」ワークフローを起動します。既定の英語のラベルが日本語に置き換わります
+- `.github/CODEOWNERS`、`.github/ISSUE_TEMPLATE/config.yml`のURL、`package.json`の`name`をこのリポジトリのものに書き換え、`develop`へのPull Requestを開きます
+
+残りは手で行います。
+
+- 組織のリポジトリでは、先に組織の「Settings」→「Actions」→「General」で、ActionsによるPull Requestの作成を許可します。禁止されているとスクリプトの該当項目が失敗します
+- `SECURITY.md`に、非公開で連絡できる先を書きます
+- `package.json`の`description`と、このREADMEを書き換えます
+- ライセンスを変えるなら、`LICENSE`と`package.json`の`license`を書き換えます
+- 「Settings」→「Advanced Security」のCode scanningで、Default setupは使いません。走査は`codeql.yml`ワークフローが行います
+- `main`と`develop`にブランチ保護をかけます（任意）
+  - `develop`にPull Requestを必須にする規則をかけると、リリース後の戻しは毎回Pull Requestになります
+  - 「Require code scanning results」の規則は、`codeql.yml`の結果（ツール名はCodeQL）で満たされます
+
+このリポジトリ自身をテンプレートとして使えるようにするには、`scripts/setup.sh --template`を実行するか、「Settings」→「General」の「Template repository」にチェックを入れます。
 
 ## 日本語の文書を検査する
 
@@ -69,8 +80,11 @@ Node 22以上が要ります。
 「である調」にしたい場合や、規則を一部だけ変えたい場合は、`.textlintrc.js`のコメントに書き方があります。
 
 `main`と`develop`への`push`と、すべてのPull Requestで、CIが同じ検査をします。
+CIではあわせて、ワークフローの構文を`actionlint`で、安全性を`zizmor`で検査します。
+ワークフローの安全性は、`codeql.yml`もCodeQLの`actions`言語で走査します。
 ワークフローが開いたPull Request（リリースのPull Requestなど）では、CIは「承認待ち」で作られます。
 書き込み権限のある人が「Approve workflows to run」を押すと動きます。
+承認せずにマージすると、承認待ちの実行は失敗として記録されますが、検査が落ちたわけではありません。
 
 ## ラベル
 
@@ -114,6 +128,9 @@ Pull Requestは`develop`に向けて開かれ、「依存関係」と「npm」�
 npmではminorとpatchの更新が本番用と開発用の2つのPull Requestにまとまり、majorの更新は個別に開かれます。
 GitHub Actionsのアクションは、majorも含めてすべて1つのPull Requestにまとまります。
 
+ワークフローが使うアクションはコミットSHAで固定し、版はコメントに書いてあります。
+DependabotはSHAとコメントの両方を更新します。
+
 セキュリティ更新は常に既定ブランチ（`main`）に向けて開かれます。
 既定ブランチ向けのエントリも書いてあるため、そこにも同じラベルと接頭辞が付きます。
 
@@ -143,6 +160,10 @@ develop ──▶ release/vX.Y.Z ──(Pull Request)──▶ main ──▶ �
 ブランチ保護で承認が要る場合はマージで止まります。
 その場合は人がマージすれば、公開のワークフローが続きを行います。
 
+`develop`にPull Requestを必須にする規則がある場合、`main`から`develop`への戻しは毎回Pull Requestになります。
+ブランチ名は`merge/vX.Y.Z-into-develop`です。
+リリースのあとに、このPull Requestもマージコミットでマージしてください。
+
 squashやrebaseでマージしないでください。
 リリースノートに`develop`で取り込んだPull Requestが載らず、次の版のPull Requestが衝突します。
 
@@ -165,10 +186,11 @@ npm version patch --no-git-tag-version
 
 ワークフローは既定でGitHubがホストする`ubuntu-latest`で動きます。
 セルフホストのランナーがある場合は、リポジトリまたは組織の変数`RUNS_ON`に、ランナーのラベル（例: `self-hosted`）を設定します。
-設定は「Settings」→「Secrets and variables」→「Actions」の「Variables」にあります。
+設定は「Settings」→「Secrets and variables」→「Actions」の「Variables」にあるほか、`scripts/setup.sh --runs-on ラベル`でも行えます。
 変数が無いときは`ubuntu-latest`に倒れるため、設定しなくても動きます。
 
-セルフホストのランナーには、`git`と`gh`（GitHub CLI）が要ります。
+セルフホストのランナーには、`git`と`gh`（GitHub CLI）、Dockerが要ります。
+Dockerはzizmorの検査（コンテナで動きます）に使います。
 Nodeはワークフローが用意します。
 公開リポジトリでセルフホストのランナーを使うと、フォークからのPull Requestで任意のコードが動くため、非公開のリポジトリで使ってください。
 
@@ -176,7 +198,8 @@ Nodeはワークフローが用意します。
 
 | ファイル | いつ動くか | 何をするか |
 | ---- | ---- | ---- |
-| `ci.yml` | `main`と`develop`への`push`、Pull Request、手動 | 日本語の文書を検査します |
+| `ci.yml` | `main`と`develop`への`push`、Pull Request、手動 | 日本語の文書、ワークフローの構文（actionlint）、ワークフローの安全性（zizmor）を検査します |
+| `codeql.yml` | `main`と`develop`への`push`、Pull Request、毎週月曜、手動 | ワークフローの安全性をCodeQLで走査します。結果は「Security」→「Code scanning」に出ます |
 | `labels.yml` | `.github/labels.yml`か`.github/workflows/labels.yml`の変更、手動 | リポジトリのラベルを定義に揃えます。Pull Requestでは差分の表示だけです |
 | `labeler.yml` | Pull Requestを開いたとき、更新したとき | 変えたファイルとブランチ名からラベルを付けます |
 | `release.yml` | 手動 | `develop`からリリースブランチを切り、版を上げ、`main`へのPull Requestを開きます |
