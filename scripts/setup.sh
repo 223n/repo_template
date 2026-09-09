@@ -4,6 +4,8 @@
 # README の「作った直後にやること」のうち、gh CLI で行えるものを自動化する。
 # 何度実行しても同じ結果になるように書いてあり、途中で失敗した項目は最後にまとめて出す。
 #
+# Windows では、同じことを行う scripts/setup.ps1 を使う。片方だけを変えないこと。
+#
 # 使い方:
 #   scripts/setup.sh [--repo OWNER/REPO] [--runs-on LABEL] [--template] [--no-pr] [--dry-run]
 #
@@ -76,6 +78,15 @@ fi
 owner="${repo%%/*}"
 name="${repo##*/}"
 default_branch="$(gh repo view "$repo" --json defaultBranchRef --jq .defaultBranchRef.name)"
+
+# いまいるディレクトリが対象リポジトリの clone かどうか。
+# ローカルの git を使う確認（履歴が繋がっているか）に要る
+in_clone=false
+if git rev-parse --git-dir >/dev/null 2>&1 \
+  && [ "$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" = "$repo" ]; then
+  in_clone=true
+fi
+
 info "対象: ${repo}（既定ブランチ: ${default_branch}）"
 $dry_run && echo "  --dry-run のため、実際には何も変えません"
 
@@ -124,6 +135,30 @@ fi
 info "${DEVELOP_BRANCH} ブランチを用意する"
 if gh api "repos/${repo}/branches/${DEVELOP_BRANCH}" --silent >/dev/null 2>&1; then
   ok "すでにある"
+
+  # 「Include all branches」で複製した ${DEVELOP_BRANCH} は、${default_branch} と共通の祖先を持たない。
+  # GitHub の仕様で、テンプレートから作ったブランチはそれぞれ独立した最初のコミットから始まるためである。
+  # この状態だとリリースのワークフローが merge で止まるため、ここで気付けるようにする。
+  # 判定はローカルの git で行う。fetch はリモート追跡の参照を更新するだけなので --dry-run でも実行する
+  if ! $in_clone; then
+    warn "clone の外で実行しているため、${default_branch} と ${DEVELOP_BRANCH} が繋がっているかを確かめられなかった。clone の中で再実行する"
+  elif [ "$(git rev-parse --is-shallow-repository)" = 'true' ]; then
+    warn "浅い clone のため、${default_branch} と ${DEVELOP_BRANCH} が繋がっているかを確かめられなかった。git fetch --unshallow してから再実行する"
+  elif ! git fetch --quiet origin \
+    "+refs/heads/${default_branch}:refs/remotes/origin/${default_branch}" \
+    "+refs/heads/${DEVELOP_BRANCH}:refs/remotes/origin/${DEVELOP_BRANCH}"; then
+    warn "git fetch できず、${default_branch} と ${DEVELOP_BRANCH} が繋がっているかを確かめられなかった"
+  elif git merge-base "origin/${default_branch}" "origin/${DEVELOP_BRANCH}" >/dev/null 2>&1; then
+    ok "${default_branch} と共通の祖先がある"
+  else
+    warn "${default_branch} と ${DEVELOP_BRANCH} の履歴が繋がっていない（共通の祖先が無い）"
+    cat >&2 <<SPLIT
+    このままではリリースのワークフローが merge で止まり、${default_branch} と ${DEVELOP_BRANCH} を行き来できない。
+    ${DEVELOP_BRANCH} に残したい変更が無ければ、${DEVELOP_BRANCH} を消してからこのスクリプトを実行し直す。
+      gh api --method DELETE "repos/${repo}/git/refs/heads/${DEVELOP_BRANCH}"
+    詳しくは README の「履歴が繋がっていないとき」を読む。
+SPLIT
+  fi
 else
   if ! sha="$(gh api "repos/${repo}/git/ref/heads/${default_branch}" --jq .object.sha 2>/dev/null)" || [ -z "$sha" ]; then
     warn "${default_branch} の先端が取れず、${DEVELOP_BRANCH} ブランチを作れなかった"
