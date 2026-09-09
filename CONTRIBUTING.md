@@ -36,6 +36,17 @@ Pull Requestはマージコミット（Create a merge commit）でマージし�
 手元で直せる指摘は`npm run lint:md:fix`と`npm run lint:ja:fix`で直ります。
 直したあとは差分を見て、意図しない変更が無いかを確かめてください。
 
+## スクリプトの書き方
+
+`scripts/setup.sh`と`scripts/setup.ps1`は同じことを行います。
+片方だけを変えないでください。
+引数の書き方（`--dry-run`と`-DryRun`）だけが違い、表示する文言と終了コードは揃えます。
+
+- `scripts/setup.ps1`はPowerShell 7以上を前提にします。Windows PowerShell 5.1では動きません
+- `.ps1`はBOM無しのUTF-8、改行はLFで保存します。PowerShell 7はBOMが無くてもUTF-8として読みます
+- ネイティブコマンドの成否は`$LASTEXITCODE`で判定します。`if (gh ...)`は出力を見るため、`--silent`を付けた呼び出しでは常に偽になります
+- `npm run lint`は日本語の文書だけを検査します。スクリプトは検査の対象外です
+
 ## コミットメッセージ
 
 日本語で、何を変えたかと、なぜ変えたかを書きます。

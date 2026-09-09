@@ -10,3 +10,4 @@
 *.yml text
 *.yaml text
 *.sh text
+*.ps1 text

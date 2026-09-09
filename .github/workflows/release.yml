@@ -204,10 +204,20 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch --create "${BRANCH}"
 
+          # 共通の祖先が無いと、木の中身が同じでも merge は必ず拒まれる。
+          # テンプレートから「Include all branches」で作ったリポジトリがこの状態になる。
+          # 先に確かめて、原因の分かる形で止める
+          if ! git merge-base "origin/${MAIN_BRANCH}" HEAD >/dev/null 2>&1; then
+            echo "::error::${MAIN_BRANCH} と ${DEVELOP_BRANCH} に共通の祖先が無い。README の「履歴が繋がっていないとき」を見て直してから実行する"
+            exit 1
+          fi
+
           # main の内容を先に取り込む。前のリリースの戻しが develop に入っていなくても、
           # main への PR が package.json で衝突しないようにする。普段は何も変わらない
           if ! git merge --no-edit "origin/${MAIN_BRANCH}"; then
-            git merge --abort
+            # マージが始まる前に拒まれたときは MERGE_HEAD が無く、git merge --abort 自体が失敗する。
+            # 既定のシェルは bash -e なので、そのままだと下の案内が出ないまま落ちる
+            git merge --abort || true
             echo "::error::${MAIN_BRANCH} と ${DEVELOP_BRANCH} が衝突する。先に ${MAIN_BRANCH} を ${DEVELOP_BRANCH} に取り込んでから実行する"
             exit 1
           fi

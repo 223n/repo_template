@@ -18,15 +18,21 @@
 | `.github/pull_request_template.md` | Pull Requestのテンプレートです |
 | `.github/CODEOWNERS` | 変更の確認を求める相手です |
 | `.github/workflows/` | CI、CodeQL、ラベルの同期、ラベル付け、リリースのワークフローです |
-| `scripts/setup.sh` | テンプレートから作った直後の設定をまとめて行うスクリプトです。`gh`を使います |
+| `scripts/setup.sh`、`scripts/setup.ps1` | テンプレートから作った直後の設定をまとめて行うスクリプトです。`gh`を使います。中身は同じで、`.ps1`はWindows向けです |
 | `CONTRIBUTING.md` | 貢献の手引きです。ブランチの運用と文書の書き方があります |
 | `SECURITY.md` | 脆弱性の報告先です |
 
 ## テンプレートから作る
 
 1. GitHubでこのリポジトリを開き、「Use this template」から「Create a new repository」を選びます
-1. 「Include all branches」にチェックを入れます。`develop`ブランチも一緒にできます。不要なブランチが複製されていたら消します
+1. 「Include all branches」にはチェックを入れません
 1. 作ったリポジトリで、次の「作った直後にやること」を順に行います
+
+「Include all branches」でブランチを複製すると、複製したブランチどうしが共通の祖先を持たない状態になります。
+テンプレートから作ったリポジトリは、ブランチごとに独立した最初のコミットから始まるためです。
+この状態では`main`と`develop`の間でPull Requestを作れず、リリースのワークフローも`merge`で止まります。
+`develop`は次の手順でスクリプトが`main`から作るため、チェックを入れる必要はありません。
+すでにチェックを入れて作ってしまった場合は、後の「履歴が繋がっていないとき」を見てください。
 
 ### 作った直後にやること
 
@@ -38,10 +44,23 @@ scripts/setup.sh --runs-on self-hosted  # セルフホストのランナーも�
 scripts/setup.sh --dry-run              # 何をするかを表示するだけ
 ```
 
+WindowsではPowerShell 7以上で`scripts/setup.ps1`を使います。
+行うことは`scripts/setup.sh`と同じで、引数の書き方だけが違います。
+
+```powershell
+.\scripts\setup.ps1                      # 設定をまとめて行う
+.\scripts\setup.ps1 -RunsOn self-hosted  # セルフホストのランナーも設定する
+.\scripts\setup.ps1 -DryRun              # 何をするかを表示するだけ
+```
+
+`Get-Help .\scripts\setup.ps1 -Detailed`で引数の説明が読めます。
+実行が「このシステムではスクリプトの実行が無効になっている」と拒まれる場合は、`Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`を実行してから使います。
+
 スクリプトは次を行います。
 何度実行しても結果は同じで、失敗した項目は最後にまとめて表示します。
 
 - `develop`ブランチが無ければ`main`から作ります
+- `develop`ブランチがすでにある場合は、`main`と共通の祖先があるかを確かめます。無ければ警告します
 - 「Allow GitHub Actions to create and approve pull requests」を有効にします。リリースのワークフローがPull Requestを開くために要ります
 - squash mergeとrebase mergeを無効にし、マージ後にブランチを消す設定にします
 - Private vulnerability reporting、Dependabot alerts、Dependabot security updatesを有効にします
@@ -59,7 +78,49 @@ scripts/setup.sh --dry-run              # 何をするかを表示するだけ
   - `develop`にPull Requestを必須にする規則をかけると、リリース後の戻しは毎回Pull Requestになります
   - 「Require code scanning results」の規則は、`codeql.yml`の結果（ツール名はCodeQL）で満たされます
 
-このリポジトリ自身をテンプレートとして使えるようにするには、`scripts/setup.sh --template`を実行するか、「Settings」→「General」の「Template repository」にチェックを入れます。
+このリポジトリ自身をテンプレートとして使えるようにするには、`scripts/setup.sh --template`を実行します。
+Windowsでは`.\scripts\setup.ps1 -Template`です。
+「Settings」→「General」の「Template repository」にチェックを入れても同じです。
+
+### 履歴が繋がっていないとき
+
+「Include all branches」にチェックを入れて作ったリポジトリでは、`main`と`develop`が共通の祖先を持ちません。
+セットアップのスクリプトはこれを見つけると、次のように警告します。
+
+```text
+  ! main と develop の履歴が繋がっていない（共通の祖先が無い）
+```
+
+放っておくと、リリースのワークフローが`main`を取り込むところで止まります。
+`main`から`develop`への戻しもできず、版が`develop`に届かなくなります。
+
+直し方は2つあります。
+どちらを選ぶかは、`develop`に残したい変更があるかどうかで決まります。
+
+`develop`に残したい変更が無い場合は、`develop`を消してからスクリプトを実行し直します。
+スクリプトが`main`から`develop`を作り直すため、履歴が繋がります。
+Windowsでは`scripts/setup.sh`のところを`.\scripts\setup.ps1`に読み替えてください。
+
+```bash
+gh api --method DELETE "repos/OWNER/REPO/git/refs/heads/develop"
+scripts/setup.sh
+```
+
+`develop`にすでに作業がある場合は、`main`を`--allow-unrelated-histories`付きで取り込みます。
+共通の祖先ができるため、以後は普通に行き来できます。
+
+```bash
+git switch develop
+git merge --allow-unrelated-histories origin/main
+git push origin develop
+```
+
+こちらには副作用が2つあります。
+共通の祖先が無いため、`main`にしかないファイルは削除ではなく追加として扱われ、`develop`に現れます。
+履歴にも、2つの根を繋ぐマージコミットが残ります。
+
+どちらの方法でも、`develop`から切った作業ブランチと、`develop`に向けて開いているPull Requestの扱いは確かめてください。
+`develop`を作り直した場合、それらは繋がらなくなります。
 
 ## 日本語の文書を検査する
 
@@ -187,7 +248,9 @@ npm version patch --no-git-tag-version
 
 ワークフローは既定でGitHubがホストする`ubuntu-latest`で動きます。
 セルフホストのランナーがある場合は、リポジトリまたは組織の変数`RUNS_ON`に、ランナーのラベル（例: `self-hosted`）を設定します。
-設定は「Settings」→「Secrets and variables」→「Actions」の「Variables」にあるほか、`scripts/setup.sh --runs-on ラベル`でも行えます。
+設定は「Settings」→「Secrets and variables」→「Actions」の「Variables」にあります。
+`scripts/setup.sh --runs-on ラベル`でも行えます。
+Windowsでは`.\scripts\setup.ps1 -RunsOn ラベル`です。
 変数が無いときは`ubuntu-latest`に倒れるため、設定しなくても動きます。
 
 セルフホストのランナーには、`git`と`gh`（GitHub CLI）、Dockerが要ります。
