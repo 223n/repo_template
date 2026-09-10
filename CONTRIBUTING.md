@@ -40,7 +40,10 @@ Pull Requestはマージコミット（Create a merge commit）でマージし�
 
 `scripts/setup.sh`と`scripts/setup.ps1`は同じことを行います。
 片方だけを変えないでください。
-引数の書き方（`--dry-run`と`-DryRun`）だけが違い、表示する文言と終了コードは揃えます。
+引数の書き方（`--dry-run`と`-DryRun`）が違います。
+表示する文言と終了コードは揃えてください。
+名前の書き換えは、`scripts/setup.sh`がNodeを、`scripts/setup.ps1`がPowerShellの文字列置換を使います。
+そのため要る道具が違います。
 
 - `scripts/setup.ps1`はPowerShell 7以上を前提にします。Windows PowerShell 5.1では動きません
 - `.ps1`はBOM無しのUTF-8、改行はLFで保存します。PowerShell 7はBOMが無くてもUTF-8として読みます
