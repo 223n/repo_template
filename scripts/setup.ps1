@@ -59,6 +59,8 @@ try {
 }
 
 $DevelopBranch = 'develop'
+$MainBranch = 'main'
+$RulesetName = 'ブランチの削除を禁止する'
 $TemplateOwner = '223n'
 $TemplateRepo = '223n/repo_template'
 $TemplatePackageName = 'repo-template'
@@ -221,6 +223,8 @@ if (Test-Gh @('api', "repos/${Repo}/branches/${DevelopBranch}", '--silent')) {
     このままではリリースのワークフローが merge で止まり、${defaultBranch} と ${DevelopBranch} を行き来できない。
     ${DevelopBranch} に残したい変更が無ければ、${DevelopBranch} を消してからこのスクリプトを実行し直す。
       gh api --method DELETE "repos/${Repo}/git/refs/heads/${DevelopBranch}"
+    「${RulesetName}」の規則がかかっていると、この削除は拒まれる。
+    先に Settings > Rules でその規則の Enforcement を Disabled にし、作り直したあとで Active に戻す。
     詳しくは README の「履歴が繋がっていないとき」を読む。
 "@)
                 }
@@ -238,7 +242,65 @@ if (Test-Gh @('api', "repos/${Repo}/branches/${DevelopBranch}", '--silent')) {
     }
 }
 
-# ---- 5. セルフホストのランナー
+# ---- 5. main と develop の削除を禁止する
+# 「Automatically delete head branches」を有効にしているため、main や develop を head にした
+# Pull Request をマージすると、そのブランチごと消える。削除を禁止する規則で止める。
+# 無料プランの非公開リポジトリでは規則を作れても効かないため、あとで効いているかを確かめる
+Write-Info "${MainBranch} と ${DevelopBranch} の削除を禁止する規則を作る"
+$rulesetFailed = $false
+$rulesetId = Get-GhValue @(
+    'api', "repos/${Repo}/rulesets?includes_parents=false",
+    '--jq', "[.[] | select(.name == `"${RulesetName}`")] | first | .id // empty"
+)
+if ($rulesetId) {
+    # 利用者が同じ規則に別のルールを足していることがあるため、中身は変えない
+    Write-Ok "すでにある（id: ${rulesetId}）。中身は変えない"
+} else {
+    $rulesetBody = @"
+{
+  "name": "${RulesetName}",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/${MainBranch}", "refs/heads/${DevelopBranch}"], "exclude": [] } },
+  "rules": [ { "type": "deletion" } ]
+}
+"@
+    if ($DryRun) {
+        Write-Host "  + gh api --method POST repos/${Repo}/rulesets --input -"
+        foreach ($line in $rulesetBody -split "`n") { Write-Host "    $line" }
+    } else {
+        # Invoke-Step は標準入力を渡せないため、BOM 無しの UTF-8 で一時ファイルに書いて渡す
+        $bodyFile = [System.IO.Path]::GetTempFileName()
+        try {
+            [System.IO.File]::WriteAllText($bodyFile, $rulesetBody, $Utf8NoBom)
+            gh api --method POST "repos/${Repo}/rulesets" --input $bodyFile --silent
+            if ($LASTEXITCODE -eq 0) {
+                Write-Ok '作った'
+            } else {
+                Write-Warn '削除を禁止する規則を作れなかった。無料プランの非公開リポジトリでは使えない。組織で一括管理されているか、権限が足りない場合もある'
+                $rulesetFailed = $true
+            }
+        } finally {
+            Remove-Item -LiteralPath $bodyFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+# 作れても効いていないことがある。実際に効いている規則だけを返す API で確かめる
+if (-not $DryRun) {
+    $unguarded = @()
+    foreach ($branch in @($MainBranch, $DevelopBranch)) {
+        $guarded = Get-GhValue @('api', "repos/${Repo}/rules/branches/${branch}", '--jq', 'any(.[]; .type == "deletion")')
+        if ($guarded -ne 'true') { $unguarded += $branch }
+    }
+    if ($unguarded.Count -eq 0) {
+        Write-Ok "${MainBranch} と ${DevelopBranch} の削除は禁止されている"
+    } elseif (-not $rulesetFailed) {
+        Write-Warn "$($unguarded -join '、') の削除を禁止できていない。無料プランの非公開リポジトリでは規則が効かない。classic のブランチ保護は見ていないため、そちらでかけている場合はこの警告を無視してよい"
+    }
+}
+
+# ---- 6. セルフホストのランナー
 if ($RunsOn) {
     Write-Info "変数 RUNS_ON を ${RunsOn} にする"
     if (Invoke-Step 'gh' @('variable', 'set', 'RUNS_ON', '--body', $RunsOn, '--repo', $Repo)) {
@@ -248,7 +310,7 @@ if ($RunsOn) {
     }
 }
 
-# ---- 6. ラベルを揃える
+# ---- 7. ラベルを揃える
 Write-Info '「ラベルを同期する」ワークフローを動かす（既定の英語ラベルが日本語に置き換わる）'
 if (Invoke-Step 'gh' @('workflow', 'run', 'labels.yml', '--repo', $Repo, '--ref', $DevelopBranch)) {
     Write-Ok '起動した。結果は Actions の画面で確かめる'
@@ -256,7 +318,7 @@ if (Invoke-Step 'gh' @('workflow', 'run', 'labels.yml', '--repo', $Repo, '--ref'
     Write-Warn 'ラベル同期を起動できなかった。Actions の画面から「ラベルを同期する」を手で実行する'
 }
 
-# ---- 7. テンプレート由来の名前を書き換える
+# ---- 8. テンプレート由来の名前を書き換える
 Write-Info 'テンプレート由来の名前を、このリポジトリのものに書き換える'
 $changed = [System.Collections.Generic.List[string]]::new()
 

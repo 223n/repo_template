@@ -20,6 +20,8 @@
 set -euo pipefail
 
 DEVELOP_BRANCH='develop'
+MAIN_BRANCH='main'
+RULESET_NAME='ブランチの削除を禁止する'
 TEMPLATE_OWNER='223n'
 TEMPLATE_REPO='223n/repo_template'
 TEMPLATE_PACKAGE_NAME='repo-template'
@@ -156,6 +158,8 @@ if gh api "repos/${repo}/branches/${DEVELOP_BRANCH}" --silent >/dev/null 2>&1; t
     このままではリリースのワークフローが merge で止まり、${default_branch} と ${DEVELOP_BRANCH} を行き来できない。
     ${DEVELOP_BRANCH} に残したい変更が無ければ、${DEVELOP_BRANCH} を消してからこのスクリプトを実行し直す。
       gh api --method DELETE "repos/${repo}/git/refs/heads/${DEVELOP_BRANCH}"
+    「${RULESET_NAME}」の規則がかかっていると、この削除は拒まれる。
+    先に Settings > Rules でその規則の Enforcement を Disabled にし、作り直したあとで Active に戻す。
     詳しくは README の「履歴が繋がっていないとき」を読む。
 SPLIT
   fi
@@ -169,7 +173,59 @@ else
   fi
 fi
 
-# ---- 5. セルフホストのランナー
+# ---- 5. main と develop の削除を禁止する
+# 「Automatically delete head branches」を有効にしているため、main や develop を head にした
+# Pull Request をマージすると、そのブランチごと消える。削除を禁止する規則で止める。
+# 無料プランの非公開リポジトリでは規則を作れても効かないため、あとで効いているかを確かめる
+info "${MAIN_BRANCH} と ${DEVELOP_BRANCH} の削除を禁止する規則を作る"
+ruleset_failed=false
+ruleset_id="$(gh api "repos/${repo}/rulesets?includes_parents=false" \
+  --jq "[.[] | select(.name == \"${RULESET_NAME}\")] | first | .id // empty" 2>/dev/null || true)"
+if [ -n "$ruleset_id" ]; then
+  # 利用者が同じ規則に別のルールを足していることがあるため、中身は変えない
+  ok "すでにある（id: ${ruleset_id}）。中身は変えない"
+else
+  ruleset_body="$(cat <<JSON
+{
+  "name": "${RULESET_NAME}",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": { "ref_name": { "include": ["refs/heads/${MAIN_BRANCH}", "refs/heads/${DEVELOP_BRANCH}"], "exclude": [] } },
+  "rules": [ { "type": "deletion" } ]
+}
+JSON
+  )"
+  if $dry_run; then
+    printf '  + gh api --method POST %s --input -\n' "repos/${repo}/rulesets"
+    printf '%s\n' "$ruleset_body" | sed 's/^/    /'
+  elif printf '%s' "$ruleset_body" | gh api --method POST "repos/${repo}/rulesets" --input - --silent; then
+    ok "作った"
+  else
+    warn "削除を禁止する規則を作れなかった。無料プランの非公開リポジトリでは使えない。組織で一括管理されているか、権限が足りない場合もある"
+    ruleset_failed=true
+  fi
+fi
+
+# 作れても効いていないことがある。実際に効いている規則だけを返す API で確かめる
+if ! $dry_run; then
+  unguarded=''
+  for branch in "$MAIN_BRANCH" "$DEVELOP_BRANCH"; do
+    if [ "$(gh api "repos/${repo}/rules/branches/${branch}" \
+      --jq 'any(.[]; .type == "deletion")' 2>/dev/null || echo false)" != 'true' ]; then
+      unguarded="${unguarded}${unguarded:+、}${branch}"
+    fi
+  done
+  if [ -z "$unguarded" ]; then
+    ok "${MAIN_BRANCH} と ${DEVELOP_BRANCH} の削除は禁止されている"
+  elif $ruleset_failed; then
+    # 作れなかったことはすでに warn 済みなので、同じことを二重に出さない
+    :
+  else
+    warn "${unguarded} の削除を禁止できていない。無料プランの非公開リポジトリでは規則が効かない。classic のブランチ保護は見ていないため、そちらでかけている場合はこの警告を無視してよい"
+  fi
+fi
+
+# ---- 6. セルフホストのランナー
 if [ -n "$runs_on" ]; then
   info "変数 RUNS_ON を ${runs_on} にする"
   if run gh variable set RUNS_ON --body "$runs_on" --repo "$repo"; then
@@ -179,7 +235,7 @@ if [ -n "$runs_on" ]; then
   fi
 fi
 
-# ---- 6. ラベルを揃える
+# ---- 7. ラベルを揃える
 info "「ラベルを同期する」ワークフローを動かす（既定の英語ラベルが日本語に置き換わる）"
 if run gh workflow run labels.yml --repo "$repo" --ref "$DEVELOP_BRANCH"; then
   ok "起動した。結果は Actions の画面で確かめる"
@@ -187,7 +243,7 @@ else
   warn "ラベル同期を起動できなかった。Actions の画面から「ラベルを同期する」を手で実行する"
 fi
 
-# ---- 7. テンプレート由来の名前を書き換える
+# ---- 8. テンプレート由来の名前を書き換える
 info "テンプレート由来の名前を、このリポジトリのものに書き換える"
 changed=()
 if ! command -v node >/dev/null 2>&1; then
