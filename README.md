@@ -20,6 +20,7 @@
 | `.github/workflows/` | CI、CodeQL、ラベルの同期、ラベル付け、リリースのワークフローです |
 | `scripts/setup.sh`、`scripts/setup.ps1` | テンプレートから作った直後の設定をまとめて行うスクリプトです。`gh`を使います。中身は同じで、`.ps1`はWindows向けです |
 | `CONTRIBUTING.md` | 貢献の手引きです。ブランチの運用と文書の書き方があります |
+| `CLAUDE.md` | Claude Codeが読む決まりです。ブランチを消さないための注意があります |
 | `SECURITY.md` | 脆弱性の報告先です |
 
 ## テンプレートから作る
@@ -154,6 +155,7 @@ GitHubの画面で行う設定です。
 | 場面 | 何が起きるか | どうするか |
 | ---- | ---- | ---- |
 | ブランチ名 | `release/`、`hotfix/`、`merge/`で始めると、リリースの仕組みが反応します | 作業ブランチには`feature/`を使います |
+| Pull Requestのhead | `main`や`develop`をheadにしてマージすると、そのブランチが自動で消える恐れがあります | リリースはワークフローに任せます。詳しくは[CLAUDE.md](CLAUDE.md)にあります |
 | マージの方法 | squashやrebaseだと、リリースノートにPull Requestが載らず、次の版で衝突します | マージコミット（Create a merge commit）でマージします |
 | ラベル | 同期が済むまで、IssueフォームとDependabotが指定するラベルは黙って付きません | 最初のPull Requestを開く前にセットアップを済ませます |
 | `.github/CODEOWNERS` | Pull Requestのbaseブランチのものが読まれ、`main`には最初のリリースまで届きません | `main`向けのPull Requestで確認者が付かなくても、設定漏れではありません |
