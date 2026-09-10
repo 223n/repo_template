@@ -24,6 +24,12 @@ GitFlowに沿って運用します。
 リリースと緊急の修正の手順は[README](README.md)の「ブランチとリリース」にあります。
 Pull Requestはマージコミット（Create a merge commit）でマージします。
 
+`main`と`develop`は、Pull Requestのheadにしないでください。
+マージ後にheadブランチが自動で消える設定のため、そのブランチごと失う恐れがあります。
+`develop`から`main`へはリリースのワークフローが`release/*`ブランチを切ります。
+`main`から`develop`へは`merge/*`ブランチを使います。
+理由と直し方は[CLAUDE.md](CLAUDE.md)にあります。
+
 ## 文書の書き方
 
 日本語の文書は`textlint`と`markdownlint`で検査します。
