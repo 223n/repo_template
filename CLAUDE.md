@@ -48,11 +48,17 @@ gh pr create --base develop --head merge/main-into-develop --title "main を dev
 ### 自動削除を止める設定
 
 GitHubの文書は「Branch protection rules and repository rules can also prevent branches being automatically deleted.」と書いています。
-`main`と`develop`に削除を禁止する規則をかけておくと、この事故は起きなくなります。
-ルールセットなら「Restrict deletions」、classicのブランチ保護なら「Allow deletions」を無効のままにします。
+`scripts/setup.sh`が「ブランチの削除を禁止する」ルールセットを作り、`main`と`develop`にかけます。
+ルールは「Restrict deletions」（APIの`deletion`）です。
 
-規則は無料プランの非公開リポジトリでは使えません。
-かけたつもりで効いていないことがあるため、設定したら実際に確かめてください。
+ルールセットは無料プランの非公開リポジトリでは効きません。
+作れても守られないため、スクリプトが実際に効いているかを確かめ、効いていなければ警告します。
+その場合はclassicのブランチ保護で「Allow deletions」を無効のままにするか、有料プランに上げてください。
+
+`.github/workflows/branch-guard.yml`が、`main`や`develop`をheadにしたPull Requestで失敗します。
+ただしこれは気付かせるだけで、マージは止めません。
+必須チェックにするとGITHUB_TOKENが開いたPull Requestで埋まらなくなるためです。
+削除そのものを止めるのはルールセットです。
 
 既定ブランチは削除できません。
 ただし自動削除の文書に既定ブランチの例外は書かれていないため、これを守りとして当てにしないでください。

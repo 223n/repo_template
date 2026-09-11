@@ -17,7 +17,7 @@
 | `.github/ISSUE_TEMPLATE/` | Issueのフォームです。バグ報告、機能の要望、質問の3つがあります |
 | `.github/pull_request_template.md` | Pull Requestのテンプレートです |
 | `.github/CODEOWNERS` | 変更の確認を求める相手です |
-| `.github/workflows/` | CI、CodeQL、ラベルの同期、ラベル付け、リリースのワークフローです |
+| `.github/workflows/` | CI、CodeQL、ラベルの同期、ラベル付け、headブランチの確認、リリースのワークフローです |
 | `scripts/setup.sh`、`scripts/setup.ps1` | テンプレートから作った直後の設定をまとめて行うスクリプトです。`gh`を使います。中身は同じで、`.ps1`はWindows向けです |
 | `CONTRIBUTING.md` | 貢献の手引きです。ブランチの運用と文書の書き方があります |
 | `CLAUDE.md` | Claude Codeが読む決まりです。ブランチを消さないための注意があります |
@@ -87,6 +87,7 @@ WindowsではPowerShell 7以上で`scripts/setup.ps1`を使います。
 - `develop`ブランチがすでにある場合は、`main`と共通の祖先があるかを確かめます。無ければ警告します
 - 「Allow GitHub Actions to create and approve pull requests」を有効にします。リリースのワークフローがPull Requestを開くために要ります
 - squash mergeとrebase mergeを無効にし、マージ後にブランチを消す設定にします
+- 「ブランチの削除を禁止する」ルールセットを作り、`main`と`develop`が消えないようにします。効いているかも確かめます
 - Private vulnerability reporting、Dependabot alerts、Dependabot security updatesを有効にします
 - 「ラベルを同期する」ワークフローを起動します。既定の英語のラベルが日本語に置き換わります
 - `.github/CODEOWNERS`、`.github/ISSUE_TEMPLATE/config.yml`のURL、`package.json`の`name`をこのリポジトリのものに書き換え、`develop`へのPull Requestを開きます
@@ -108,7 +109,8 @@ GitHubの画面で行う設定です。
 | Private vulnerability reporting | 「Settings」→「Advanced Security」 | 行う |
 | Dependabot alerts、Dependabot security updates | 「Settings」→「Advanced Security」 | 行う |
 | Code scanningのDefault setupを使わない | 「Settings」→「Advanced Security」 | 行わない |
-| `main`と`develop`のブランチ保護（任意） | 「Settings」→「Rules」 | 行わない |
+| `main`と`develop`の削除を禁止する | 「Settings」→「Rules」 | 行う |
+| `main`と`develop`のそのほかのブランチ保護（任意） | 「Settings」→「Rules」 | 行わない |
 | 変数`RUNS_ON`（セルフホストのランナーを使う場合） | 「Settings」→「Secrets and variables」→「Actions」→「Variables」 | `--runs-on`で行う |
 | このリポジトリ自身をテンプレートにする | 「Settings」→「General」→「Template repository」 | `--template`で行う |
 
@@ -126,6 +128,8 @@ GitHubの画面で行う設定です。
 - Code scanningのDefault setupは使いません。走査は`codeql.yml`が行います。誤って有効にしたときは、同じ画面で無効に戻します
 - 「Require code scanning results」の規則は、`codeql.yml`の結果（ツール名はCodeQL）で満たせます。ただし解析中とツールが未設定のときもマージを止めます
 - `develop`にPull Requestを必須にする規則をかけると、リリース後の戻しは毎回Pull Requestになります
+- ルールセットは無料プランの非公開リポジトリでは効きません。作れても守られないため、スクリプトが確かめて警告します
+- 「ブランチの削除を禁止する」ルールセットがあると、`develop`を消して作り直す復旧ができません。後の「履歴が繋がっていないとき」を見てください
 
 ### 自分で書き換えるファイル
 
@@ -155,7 +159,7 @@ GitHubの画面で行う設定です。
 | 場面 | 何が起きるか | どうするか |
 | ---- | ---- | ---- |
 | ブランチ名 | `release/`、`hotfix/`、`merge/`で始めると、リリースの仕組みが反応します | 作業ブランチには`feature/`を使います |
-| Pull Requestのhead | `main`や`develop`をheadにしてマージすると、そのブランチが自動で消える恐れがあります | リリースはワークフローに任せます。詳しくは[CLAUDE.md](CLAUDE.md)にあります |
+| Pull Requestのhead | `main`や`develop`をheadにすると、「PRのheadブランチを確かめる」が失敗します | リリースはワークフローに任せます。詳しくは[CLAUDE.md](CLAUDE.md)にあります |
 | マージの方法 | squashやrebaseだと、リリースノートにPull Requestが載らず、次の版で衝突します | マージコミット（Create a merge commit）でマージします |
 | ラベル | 同期が済むまで、IssueフォームとDependabotが指定するラベルは黙って付きません | 最初のPull Requestを開く前にセットアップを済ませます |
 | `.github/CODEOWNERS` | Pull Requestのbaseブランチのものが読まれ、`main`には最初のリリースまで届きません | `main`向けのPull Requestで確認者が付かなくても、設定漏れではありません |
@@ -316,6 +320,7 @@ Nodeはワークフローが用意します。
 | `codeql.yml` | `main`と`develop`への`push`、Pull Request、毎週月曜、手動 | ワークフローの安全性をCodeQLで走査します。結果は「Security」→「Code scanning」に出ます |
 | `labels.yml` | `.github/labels.yml`か`.github/workflows/labels.yml`の変更、手動 | リポジトリのラベルを定義に揃えます。Pull Requestでは差分の表示だけです |
 | `labeler.yml` | Pull Requestを開いたとき、更新したとき | 変えたファイルとブランチ名からラベルを付けます |
+| `branch-guard.yml` | Pull Requestを開いたとき、更新したとき | headブランチが`main`か`develop`なら失敗します。マージは止めません |
 | `release.yml` | 手動 | `develop`からリリースブランチを切り、版を上げ、`main`へのPull Requestを開きます |
 | `release-publish.yml` | `release/*`か`hotfix/*`のPull Requestが`main`にマージされたとき | タグを打ち、GitHub Releaseを作り、`main`を`develop`に戻します |
 
@@ -342,6 +347,9 @@ Windowsでは`scripts/setup.sh`のところを`.\scripts\setup.ps1`に読み替�
 gh api --method DELETE "repos/OWNER/REPO/git/refs/heads/develop"
 scripts/setup.sh
 ```
+
+「ブランチの削除を禁止する」ルールセットがあると、この削除は拒まれます。
+「Settings」→「Rules」でそのルールセットの「Enforcement」を「Disabled」にし、作り直したあとで「Active」に戻します。
 
 `develop`にすでに作業がある場合は、`main`を`--allow-unrelated-histories`付きで取り込みます。
 共通の祖先ができるため、以後は普通に行き来できます。
