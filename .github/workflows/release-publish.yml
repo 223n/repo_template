@@ -174,6 +174,13 @@ jobs:
             exit 0
           fi
 
+          # 共通の祖先が無いと merge も PR も作れない。下の PR のフォールバックへ回しても、
+          # head と base の履歴が繋がらないため gh pr create が拒まれる。ここで止める
+          if ! git merge-base "origin/${MAIN_BRANCH}" HEAD >/dev/null 2>&1; then
+            echo "::error::${MAIN_BRANCH} と ${DEVELOP_BRANCH} に共通の祖先が無い。タグと Release は作れたが、${DEVELOP_BRANCH} への戻しはできない。README の「履歴が繋がっていないとき」を見て直す"
+            exit 1
+          fi
+
           if git merge --no-ff --no-edit --message "${MAIN_BRANCH} を ${DEVELOP_BRANCH} に取り込む（${TAG}）" "origin/${MAIN_BRANCH}"; then
             if git push origin "HEAD:${DEVELOP_BRANCH}"; then
               echo "- ${DEVELOP_BRANCH}: ${MAIN_BRANCH} を直接取り込んだ" >> "$GITHUB_STEP_SUMMARY"
@@ -181,7 +188,8 @@ jobs:
             fi
             echo "::warning::${DEVELOP_BRANCH} に直接押せなかった。PR で取り込む"
           else
-            git merge --abort
+            # abort に失敗しても、下の PR のフォールバックまで進めるようにする
+            git merge --abort || true
             echo "::warning::${MAIN_BRANCH} と ${DEVELOP_BRANCH} が衝突する。PR で取り込む"
           fi
 
