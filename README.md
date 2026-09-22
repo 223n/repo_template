@@ -44,7 +44,7 @@
 | リポジトリの管理者権限 | スクリプトが変える設定は、どれも管理者権限が要ります |
 | `gh`（GitHub CLI）とログイン | 設定の変更とPull Requestの作成に使います。先に`gh auth login`を済ませます |
 | `git`の`user.name`と`user.email` | スクリプトが名前の書き換えをコミットします |
-| Node 22以上 | 文書の検査（`npm run lint`）に使います。`scripts/setup.sh`は名前の書き換えにも使います |
+| Node 24以上 | 文書の検査（`npm run lint`）に使います。`scripts/setup.sh`は名前の書き換えにも使います |
 | PowerShell 7以上 | Windowsで`scripts/setup.ps1`を使う場合です。Windows PowerShell 5.1では動きません |
 
 `scripts/setup.ps1`は、名前の書き換えにNodeを使いません。
@@ -183,7 +183,7 @@ npm run lint:md:fix   # 書式の指摘を直す
 npm run lint:ja:fix   # 日本語の指摘のうち、機械的に直せるものを直す
 ```
 
-Node 22以上が要ります。
+Node 24以上が要ります。
 
 文体は「ですます調」です。
 「である調」にしたい場合や、規則を一部だけ変えたい場合は、`.textlintrc.js`のコメントに書き方があります。
