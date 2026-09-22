@@ -5,7 +5,7 @@
   "description": "リポジトリのテンプレート。日本語の文書を検査する設定と、GitHub の運用に要る設定ファイルを含む。",
   "license": "Apache-2.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "lint": "npm run lint:md && npm run lint:ja",
