@@ -111,7 +111,7 @@ jobs:
         # 版の比較にも node を使うため、その前に用意する。セルフホストのランナーに Node が無くても動く
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
 
       - name: 依存を入れる
