@@ -53,10 +53,10 @@
 次の場合は、名前の書き換えと履歴の確認が飛ばされます。
 飛ばした項目は実行の最後に一覧で出るため、直してから実行し直せます。
 
-- cloneの外や、サブディレクトリで実行した
-- `--repo OWNER/REPO`で、いまいるcloneとは別のリポジトリを指定した
-- 作業木に未コミットの変更がある
-- 浅いclone（`--depth`付き）を使っている
+- cloneの外や、サブディレクトリで実行した場合
+- `--repo OWNER/REPO`で、いまいるcloneとは別のリポジトリを指定した場合
+- 作業木に未コミットの変更がある場合
+- 浅いclone（`--depth`付き）を使っている場合
 
 ### 作った直後にやること
 
@@ -100,19 +100,19 @@ WindowsではPowerShell 7以上で`scripts/setup.ps1`を使います。
 ### 必要な設定
 
 GitHubの画面で行う設定です。
-「スクリプト」が「行う」のものは、セットアップのスクリプトが代わりに設定します。
+「スクリプト」が「行います」のものは、セットアップのスクリプトが代わりに設定します。
 
 | 設定 | 場所 | スクリプト |
 | ---- | ---- | ---- |
-| ActionsにPull Requestの作成と承認を許す | 「Settings」→「Actions」→「General」→「Workflow permissions」 | 行う |
-| マージコミットだけを許し、マージ後にブランチを消す | 「Settings」→「General」→「Pull Requests」 | 行う |
-| Private vulnerability reporting | 「Settings」→「Advanced Security」 | 行う |
-| Dependabot alerts、Dependabot security updates | 「Settings」→「Advanced Security」 | 行う |
-| Code scanningのDefault setupを使わない | 「Settings」→「Advanced Security」 | 行わない |
-| `main`と`develop`の削除を禁止する | 「Settings」→「Rules」 | 行う |
-| `main`と`develop`のそのほかのブランチ保護（任意） | 「Settings」→「Rules」 | 行わない |
-| 変数`RUNS_ON`（セルフホストのランナーを使う場合） | 「Settings」→「Secrets and variables」→「Actions」→「Variables」 | `--runs-on`で行う |
-| このリポジトリ自身をテンプレートにする | 「Settings」→「General」→「Template repository」 | `--template`で行う |
+| ActionsにPull Requestの作成と承認を許します | 「Settings」→「Actions」→「General」→「Workflow permissions」 | 行います |
+| マージコミットだけを許し、マージ後にブランチを消します | 「Settings」→「General」→「Pull Requests」 | 行います |
+| Private vulnerability reporting | 「Settings」→「Advanced Security」 | 行います |
+| Dependabot alerts、Dependabot security updates | 「Settings」→「Advanced Security」 | 行います |
+| Code scanningのDefault setupを使いません | 「Settings」→「Advanced Security」 | 行いません |
+| `main`と`develop`の削除を禁止します | 「Settings」→「Rules」 | 行います |
+| `main`と`develop`のそのほかのブランチ保護（任意） | 「Settings」→「Rules」 | 行いません |
+| 変数`RUNS_ON`（セルフホストのランナーを使う場合） | 「Settings」→「Secrets and variables」→「Actions」→「Variables」 | `--runs-on`で行います |
+| このリポジトリ自身をテンプレートにします | 「Settings」→「General」→「Template repository」 | `--template`で行います |
 
 次は組織の管理者に頼みます。
 どれも、リポジトリ側では変えられません。
@@ -134,19 +134,19 @@ GitHubの画面で行う設定です。
 ### 自分で書き換えるファイル
 
 テンプレート由来の値が残っているファイルです。
-「スクリプト」が「行う」のものは、セットアップのスクリプトが書き換えて`develop`へのPull Requestを開きます。
+「スクリプト」が「行います」のものは、セットアップのスクリプトが書き換えて`develop`へのPull Requestを開きます。
 
 | ファイル | 書き換えるところ | スクリプト |
 | ---- | ---- | ---- |
-| `.github/CODEOWNERS` | 変更の確認を求める相手 | 行う |
-| `.github/ISSUE_TEMPLATE/config.yml` | 脆弱性の報告先のURL | 行う |
-| `package.json` | `name` | 行う |
-| `package.json` | `description`と`version` | 行わない |
-| `package.json` | `private: true`。npmに公開するなら外します | 行わない |
-| `README.md` | このファイル全体 | 行わない |
-| `SECURITY.md` | 非公開で連絡できる先 | 行わない |
-| `LICENSE` | `Copyright [yyyy] [name of copyright owner]`の行 | 行わない |
-| `LICENSE`と`package.json`の`license` | ライセンスを変える場合 | 行わない |
+| `.github/CODEOWNERS` | 変更の確認を求める相手 | 行います |
+| `.github/ISSUE_TEMPLATE/config.yml` | 脆弱性の報告先のURL | 行います |
+| `package.json` | `name` | 行います |
+| `package.json` | `description`と`version` | 行いません |
+| `package.json` | `private: true`。npmに公開するなら外します | 行いません |
+| `README.md` | このファイル全体 | 行いません |
+| `SECURITY.md` | 非公開で連絡できる先 | 行いません |
+| `LICENSE` | `Copyright [yyyy] [name of copyright owner]`の行 | 行いません |
+| `LICENSE`と`package.json`の`license` | ライセンスを変える場合 | 行いません |
 
 `version`はテンプレートの`0.2.0`から始まります。
 最初のリリースは`0.2.0`より大きい版だけが通ります。
@@ -204,9 +204,12 @@ IssueとPull Requestのラベルはすべて日本語です。
 ただし`main`からの同期では消しません。
 `main`の`.github/labels.yml`が`develop`より古い期間に、`develop`で足したラベルを消さないためです。
 
+<!-- ラベル名（「対応しない」など）は変えられないため、この表だけ、普通体の文末の規則を止めます -->
+<!-- textlint-disable @223n/lint-config-ja/rules/desumasu-ending -->
+
 | ラベル | 用途 | 誰が付けるか |
 | ---- | ---- | ---- |
-| バグ | 期待どおりに動かない | Issueフォーム |
+| バグ | 期待どおりに動かないもの | Issueフォーム |
 | 機能追加 | 新しい機能や改善の要望 | Issueフォーム |
 | ドキュメント | 文書の追加や修正 | ラベラー、人 |
 | 質問 | 使い方や仕様についての質問 | Issueフォーム |
@@ -222,6 +225,8 @@ IssueとPull Requestのラベルはすべて日本語です。
 | リリース | リリースの準備と公開 | リリースのワークフロー |
 | セキュリティ | 脆弱性やセキュリティに関わる修正 | 人、ラベラー |
 | 破壊的変更 | 後方互換性を壊す変更 | 人 |
+
+<!-- textlint-enable @223n/lint-config-ja/rules/desumasu-ending -->
 
 GitHubが最初から用意する英語のラベル（`bug`や`enhancement`など）は、付いているIssueを保ったまま日本語のラベルに改名されます。
 Dependabotが作る既定のラベル（`dependencies`、`javascript`、`github_actions`）も同じように改名されます。
